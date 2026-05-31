@@ -1,0 +1,17 @@
+# Cache & build artifacts
+__pycache__/
+*.pyc
+*.pyo
+
+# Local lockfiles (can be regenerated)
+uv.lock
+
+# Local environment
+.python-version
+
+# Runtime / temp files
+/tmp/
+*.tmp
+
+# OS files
+.DS_Store
