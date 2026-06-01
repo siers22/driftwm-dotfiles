@@ -96,6 +96,8 @@ ICON = {
     "bt_off": "󰂲",
     "bt_connected": "󰂱",
     "caffeine": "\uec15",  # nf-md-coffee-steam
+    "gpu": "\uf878",  # nf-md-gpu
+    "temp": "\uf2c7",  # nf-md-thermometer
 }
 
 # ── Weather icons (Unicode, no Nerd Font needed) ────────────
@@ -153,6 +155,33 @@ cpu_tracker = CpuTracker()
 def get_cpu_percent() -> float:
     """CPU usage since last call (delta from /proc/stat)."""
     return cpu_tracker.read()
+
+
+def get_gpu_percent() -> float:
+    """GPU usage from amdgpu sysfs (%)."""
+    try:
+        val = Path("/sys/class/drm/card2/device/gpu_busy_percent").read_text().strip()
+        return float(val)
+    except (OSError, ValueError):
+        return 0.0
+
+
+def get_cpu_temp() -> float:
+    """CPU temperature from k10temp (°C)."""
+    try:
+        val = Path("/sys/class/hwmon/hwmon3/temp1_input").read_text().strip()
+        return float(val) / 1000.0
+    except (OSError, ValueError):
+        return 0.0
+
+
+def get_gpu_temp() -> float:
+    """GPU temperature from amdgpu (°C)."""
+    try:
+        val = Path("/sys/class/hwmon/hwmon6/temp1_input").read_text().strip()
+        return float(val) / 1000.0
+    except (OSError, ValueError):
+        return 0.0
 
 
 def get_ram() -> tuple[float, float]:

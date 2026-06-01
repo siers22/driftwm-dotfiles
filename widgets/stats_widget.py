@@ -20,6 +20,9 @@ from common import (
     get_bluetooth,
     get_brightness,
     get_cpu_percent,
+    get_cpu_temp,
+    get_gpu_percent,
+    get_gpu_temp,
     get_ram,
     get_tuned_profile,
     get_volume,
@@ -38,6 +41,7 @@ WIDTH = 36
 PAD = 15
 console = Console(width=WIDTH, highlight=False)
 cpu_history: deque[float] = deque(maxlen=10)
+gpu_history: deque[float] = deque(maxlen=10)
 ram_history: deque[float] = deque(maxlen=10)
 
 # Slow-poll cache for subprocess-dependent data (volume, SSID, bluetooth, tuned profile)
@@ -63,9 +67,14 @@ def _get_slow_data() -> dict:
 # Actions: list[str] = spawn command, str = special action, tuple = bar handler
 click_map: dict[int, list[str] | str | tuple] = {}
 
+_ALACRITTY_CFG = str(
+    Path("~/.config/driftwm/alacritty/alacritty.toml").expanduser(),
+)
+
 # Click actions per section
-ACTION_CPU = ["xfce4-taskmanager"]
-ACTION_RAM = ["xfce4-taskmanager"]
+ACTION_CPU = ["alacritty", "--config-file", _ALACRITTY_CFG, "-e", "sudo", "btop"]
+ACTION_GPU = ["alacritty", "--config-file", _ALACRITTY_CFG, "-e", "sudo", "btop"]
+ACTION_RAM = ["alacritty", "--config-file", _ALACRITTY_CFG, "-e", "sudo", "btop"]
 ACTION_VOL = ["pavucontrol"]
 ACTION_WIFI = ["nm-connection-editor"]
 ACTION_BT = ["blueman-manager"]
@@ -180,19 +189,30 @@ def bat_color(pct: int) -> str:
 
 def _render_cpu_ram(text: Text, line: int) -> int:
     cpu = get_cpu_percent()
+    cpu_temp = get_cpu_temp()
     cpu_history.append(cpu)
     text.append(f"   {ICON['cpu']}  ", style="cyan")
-    info = f"cpu  {cpu:3.0f}%"
+    info = f"cpu {cpu:3.0f}% {cpu_temp:.0f}°C"
     text.append(f"{info:<{PAD}}")
     text.append(f"{sparkline(cpu_history)}\n", style=load_color(cpu))
     click_map[line] = ACTION_CPU
+    line += 1
+
+    gpu = get_gpu_percent()
+    gpu_temp = get_gpu_temp()
+    gpu_history.append(gpu)
+    text.append(f"   {ICON['gpu']}  ", style="green")
+    info = f"gpu {gpu:3.0f}% {gpu_temp:.0f}°C"
+    text.append(f"{info:<{PAD}}")
+    text.append(f"{sparkline(gpu_history)}\n", style=load_color(gpu))
+    click_map[line] = ACTION_GPU
     line += 1
 
     ram_used, ram_total = get_ram()
     ram_pct = ram_used / ram_total * 100 if ram_total > 0 else 0
     ram_history.append(ram_pct)
     text.append(f"   {ICON['ram']}  ", style="magenta")
-    info = f"ram  {ram_used:.1f}/{ram_total:.0f}G"
+    info = f"ram {ram_used:.1f}/{ram_total:.0f}G"
     text.append(f"{info:<{PAD}}")
     text.append(f"{sparkline(ram_history)}\n", style=load_color(ram_pct))
     click_map[line] = ACTION_RAM
@@ -301,7 +321,7 @@ def render() -> Text:
         term_h = os.get_terminal_size().lines
     except OSError:
         term_h = 11
-    top_pad = max((term_h - 8) // 2, 0)
+    top_pad = max((term_h - 9) // 2, 0)
     text.append("\n" * top_pad)
     line = 1 + top_pad
 
