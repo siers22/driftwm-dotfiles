@@ -17,6 +17,7 @@ launch() {
         -e python "$DIR/${script}" &
 }
 
+launch clock       34 6  clock_widget.py
 launch stats       34 11 stats_widget.py
 launch canvas      26 4  canvas_widget.py
 launch layout      6 4  layout_widget.py
