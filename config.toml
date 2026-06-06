@@ -116,10 +116,6 @@ widget = true
 decoration = "none"
 
 [[window_rules]]
-app_id = "drift-clock"
-position = [-93, 205]
-
-[[window_rules]]
 app_id = "drift-stats"
 position = [-93, 0]
 
