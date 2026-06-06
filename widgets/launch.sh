@@ -21,6 +21,7 @@ launch stats       34 11 stats_widget.py
 launch canvas      26 4  canvas_widget.py
 launch layout      6 4  layout_widget.py
 launch calendar    22 11  calendar_widget.py
+launch spotify     56 6  spotify_widget.py
 launch notif       21 4  notif_widget.py
 
 # Power button — custom padding to match tray waybar height (28px)
