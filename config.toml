@@ -133,7 +133,7 @@ position = [186, 0]
 
 [[window_rules]]
 app_id = "drift-spotify"
-position = [42, 205]
+position = [22, 205]
 
 [[window_rules]]
 app_id = "drift-notif"
