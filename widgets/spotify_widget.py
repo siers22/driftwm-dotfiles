@@ -1,19 +1,37 @@
 #!/usr/bin/env python3
-"""Spotify now-playing widget. Shows artist, title, album, progress bar."""
+"""Spotify now-playing widget. Shows artist, title, album, progress bar + controls."""
 
 import atexit
 import os
 import subprocess
 from datetime import datetime
 
-from common import disable_mouse, enable_mouse, poll_click
+from common import disable_mouse, enable_mouse, get_volume, poll_click
 from rich.console import Console
 from rich.live import Live
 from rich.text import Text
 
-console = Console(width=56, highlight=False)
+console = Console(width=63, highlight=False)
 
-REFRESH_INTERVAL = 1  # seconds
+# Click zones for buttons: (start_x, end_x, action)
+# These are approximate terminal column ranges for each button.
+BUTTONS_X = {
+    "shuffle": (40, 44),
+    "prev": (45, 49),
+    "play": (50, 54),
+    "next": (55, 59),
+    "mute": (60, 63),
+}
+
+BUTTONS_LABELS = {
+    "shuffle": "🔀",
+    "prev": "⏮",
+    "play": "⏸",
+    "pause": "▶",
+    "next": "⏭",
+    "mute": "🔇",
+    "unmute": "🔊",
+}
 
 
 def _fmt_duration(ms: int) -> str:
@@ -24,7 +42,7 @@ def _fmt_duration(ms: int) -> str:
     return f"{minutes}:{seconds:02d}"
 
 
-def _progress_bar(pct: float, width: int = 20) -> str:
+def _progress_bar(pct: float, width: int = 30) -> str:
     """Render a thin progress bar."""
     pct = max(0.0, min(100.0, pct))
     filled = round(pct / 100 * width)
@@ -65,9 +83,45 @@ def _fetch_track() -> dict | None:
         return None
 
 
+def _get_buttons(status: str, muted: bool) -> str:
+    """Render the control buttons row."""
+    play_icon = BUTTONS_LABELS["play"] if status.lower() == "playing" else BUTTONS_LABELS["pause"]
+    mute_icon = BUTTONS_LABELS["mute"] if muted else BUTTONS_LABELS["unmute"]
+    return f"{BUTTONS_LABELS['shuffle']}  {BUTTONS_LABELS['prev']}  {play_icon}  {BUTTONS_LABELS['next']}  {mute_icon}"
+
+
+def _dispatch_button(name: str) -> None:
+    """Execute playerctl command for a button."""
+    cmds = {
+        "shuffle": ["playerctl", "--player=spotify", "shuffle"],
+        "prev": ["playerctl", "--player=spotify", "previous"],
+        "play": ["playerctl", "--player=spotify", "play-pause"],
+        "pause": ["playerctl", "--player=spotify", "play-pause"],
+        "next": ["playerctl", "--player=spotify", "next"],
+        "mute": ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"],
+        "unmute": ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"],
+    }
+    cmd = cmds.get(name)
+    if cmd:
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def _button_from_x(x: int, status: str, muted: bool) -> str | None:
+    """Map terminal x coordinate to button name."""
+    for name, (start, end) in BUTTONS_X.items():
+        if start <= x <= end:
+            if name == "play":
+                return "pause" if status.lower() != "playing" else "play"
+            if name == "mute":
+                return "unmute" if muted else "mute"
+            return name
+    return None
+
+
 def render() -> Text:
     track = _fetch_track()
-    content_lines = 5  # status + artist/title + album + progress + time
+    vol, muted = get_volume()
+    content_lines = 6  # status + artist/title + album + progress + time + buttons
 
     try:
         term_h = os.get_terminal_size().lines
@@ -84,22 +138,25 @@ def render() -> Text:
 
     status_icon = "▶" if track["status"].lower() == "playing" else "⏸"
     artist_title = f"{track['artist']} — {track['title']}"
-    if len(artist_title) > 50:
-        artist_title = artist_title[:47] + "..."
+    if len(artist_title) > 54:
+        artist_title = artist_title[:51] + "..."
 
     album = track["album"]
-    if len(album) > 50:
-        album = album[:47] + "..."
+    if len(album) > 54:
+        album = album[:51] + "..."
 
     pos_str = _fmt_duration(track["position"])
     len_str = _fmt_duration(track["length"])
     progress = _progress_bar(track["pct"], width=30)
+    buttons = _get_buttons(track["status"], muted)
 
     text.append(f"    {status_icon}  ", style="bold green")
     text.append(f"{artist_title}\n", style="bold")
     text.append(f"       {album}\n", style="dim")
     text.append(f"       {progress}\n", style="cyan")
     text.append(f"       {pos_str} / {len_str}\n")
+    # Right-align buttons
+    text.append(f"{'':>34}{buttons}\n")
 
     return text
 
@@ -113,11 +170,19 @@ try:
             live.update(render())
             click = poll_click(1.0)
             if click is not None:
-                # Click → play/pause toggle
-                subprocess.Popen(
-                    ["playerctl", "--player=spotify", "play-pause"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
+                x, y = click
+                track = _fetch_track()
+                if track is not None:
+                    _, muted = get_volume()
+                    btn = _button_from_x(x, track["status"], muted)
+                    if btn:
+                        _dispatch_button(btn)
+                    else:
+                        # Click outside buttons → play/pause
+                        subprocess.Popen(
+                            ["playerctl", "--player=spotify", "play-pause"],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
 finally:
     disable_mouse()
