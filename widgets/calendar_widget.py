@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Monthly calendar widget with today highlighted."""
+"""Monthly calendar widget with today highlighted + current time."""
 
 import atexit
 import calendar
@@ -19,7 +19,7 @@ def render() -> Text:
     year, month, day = now.year, now.month, now.day
 
     cal = calendar.monthcalendar(year, month)
-    content_lines = 2 + len(cal)  # header + day names + weeks
+    content_lines = 3 + len(cal)  # time + header + day names + weeks
 
     try:
         term_h = os.get_terminal_size().lines
@@ -29,6 +29,8 @@ def render() -> Text:
 
     text = Text()
     text.append("\n" * top_pad)
+    time_str = now.strftime("%H:%M")
+    text.append(f"   {time_str}\n", style="bold")
     header = f"{calendar.month_name[month].lower()} {year}"
     text.append(f" {ICON['calendar']} {header}\n", style="bold")
     text.append(" mo tu we th fr sa su\n")
